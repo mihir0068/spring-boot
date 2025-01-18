@@ -1,13 +1,9 @@
 package com.mihir.SpringSecurity.Service;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -15,17 +11,19 @@ import org.springframework.http.HttpStatus;
 
 import org.springframework.http.ResponseEntity;
 import com.mihir.SpringSecurity.Model.ApiResponse;
+import com.mihir.SpringSecurity.Model.Sessions;
 import com.mihir.SpringSecurity.Model.Users;
+import com.mihir.SpringSecurity.Repository.SessionRepo;
 import com.mihir.SpringSecurity.Repository.UserRepo;
-
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.MalformedJwtException;
 
 @Service
 public class UserService {
 
     @Autowired
     private UserRepo repo;
+
+    @Autowired
+    private SessionRepo sessionRepo;
 
     @Autowired
     private JwtService jwtService;
@@ -45,11 +43,11 @@ public class UserService {
         ApiResponse<Users> apiResponse = new ApiResponse<>("Registration Succeessfully Done.", response,
                 accessToken,
                 refreshToken,
-                HttpStatus.OK.value());
-        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+                HttpStatus.CREATED.value());
+        return new ResponseEntity<>(apiResponse, HttpStatus.CREATED);
     }
 
-    public ResponseEntity<ApiResponse<Users>> verify(Users user) {
+    public ResponseEntity<ApiResponse<Users>> login(Users user) {
         Authentication authentication = authManager
                 .authenticate(new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword()));
         if (authentication.isAuthenticated()) {
@@ -59,6 +57,11 @@ public class UserService {
             Users existingUser = repo.findByUsername(user.getUsername());
             existingUser.setRefreshToken(refreshToken);
             repo.save(existingUser);
+
+            Sessions session = new Sessions();
+            session.setUserId(existingUser.getId());
+            session.setRefreshToken(refreshToken);
+            sessionRepo.save(session);
 
             ApiResponse<Users> apiResponse = new ApiResponse<>("Logged in successfully",
                     user,
@@ -74,7 +77,6 @@ public class UserService {
     public ResponseEntity<ApiResponse<Users>> refreshToken(String refreshToken) {
         if (jwtService.validateRefreshToken(refreshToken)) {
             final String username = jwtService.extractusername(refreshToken);
-            System.out.println(jwtService.isTokenExpired(refreshToken));
             if (jwtService.isTokenExpired(refreshToken)) {
                 ApiResponse<Users> apiResponse = new ApiResponse<>("Refresh token expired. Please log in again.", null,
                         null, null,
@@ -102,6 +104,47 @@ public class UserService {
             return new ResponseEntity<>(apiResponse, HttpStatus.OK);
         }
 
+        return null;
+    }
+
+    public ResponseEntity<ApiResponse<String>> logout(String refreshToken) {
+        System.out.println("refreshToken: " + refreshToken);
+        System.out.println(jwtService.isTokenExpired(refreshToken));
+        if (jwtService.isTokenExpired(refreshToken)) {
+            ApiResponse<String> response = new ApiResponse<>(
+                    "Refresh token expired",
+                    null,
+                    null,
+                    null,
+                    HttpStatus.BAD_REQUEST.value());
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        Users user = repo.findByrefreshToken(refreshToken);
+
+        System.out.println("User found: " + user);
+
+        if (user != null && refreshToken.equals(user.getRefreshToken())) {
+            user.setRefreshToken(null);
+            repo.save(user);
+            ApiResponse<String> response = new ApiResponse<>(
+                    "Logout Successfully",
+                    null,
+                    null,
+                    null,
+                    HttpStatus.OK.value());
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        }
+        ApiResponse<String> response = new ApiResponse<>(
+                "Invalid or expired refresh token",
+                null,
+                null,
+                null,
+                HttpStatus.BAD_REQUEST.value());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    public ResponseEntity<ApiResponse<String>> deactivateSessions(Users user) {
         return null;
     }
 }

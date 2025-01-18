@@ -26,8 +26,8 @@ public class JwtService {
 
     private String secretKey = "";
 
-    final public long accessTokenExpiry = 1 * 60 * 10;
-    final public long refreshTokenExpiry = 1 * 60 * 10;
+    final public long accessTokenExpiry = 1 * 60 * 1000;
+    final public long refreshTokenExpiry = 5 * 60 * 1000;
 
     public JwtService() {
         try {

@@ -1,7 +1,7 @@
 package com.mihir.SpringSecurity.Model;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -11,15 +11,11 @@ import lombok.NoArgsConstructor;
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-public class Users {
+public class Sessions {
 
     @Id
+    @GeneratedValue
     private int id;
-    private String username;
-    private String password;
-
-    // @Value("${refresh_token:' '}")
-    @Column(name = "refresh_token", nullable = true)
+    private int userId;
     private String refreshToken;
-
 }
