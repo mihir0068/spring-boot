@@ -34,13 +34,24 @@ public class UserService {
     private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
 
     public ResponseEntity<ApiResponse<Users>> register(Users user) {
+
+        if (repo.findByMobileNo(user.getMobileNo()).isPresent()) {
+            ApiResponse<Users> apiResponse = new ApiResponse<>(
+                    "Mobile number already registered. Please enter a unique mobile number.",
+                    null,
+                    null,
+                    null,
+                    HttpStatus.BAD_REQUEST.value());
+            return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+        }
+
         user.setPassword(encoder.encode(user.getPassword()));
         String accessToken = jwtService.generateAccessToken(user.getUsername());
         String refreshToken = jwtService.generateRefreshToken(user.getUsername());
         user.setRefreshToken(refreshToken);
 
-        Users response = repo.save(user);
-        ApiResponse<Users> apiResponse = new ApiResponse<>("Registration Succeessfully Done.", response,
+        repo.save(user);
+        ApiResponse<Users> apiResponse = new ApiResponse<>("Registration Succeessfully Done.", null,
                 accessToken,
                 refreshToken,
                 HttpStatus.CREATED.value());
@@ -64,7 +75,7 @@ public class UserService {
             sessionRepo.save(session);
 
             ApiResponse<Users> apiResponse = new ApiResponse<>("Logged in successfully",
-                    user,
+                    null,
                     accessToken,
                     refreshToken,
                     HttpStatus.OK.value());
@@ -75,36 +86,53 @@ public class UserService {
     }
 
     public ResponseEntity<ApiResponse<Users>> refreshToken(String refreshToken) {
-        if (jwtService.validateRefreshToken(refreshToken)) {
-            final String username = jwtService.extractusername(refreshToken);
-            if (jwtService.isTokenExpired(refreshToken)) {
-                ApiResponse<Users> apiResponse = new ApiResponse<>("Refresh token expired. Please log in again.", null,
-                        null, null,
-                        HttpStatus.OK.value());
-                return new ResponseEntity<>(apiResponse, HttpStatus.OK);
-            }
-
-            String newAccessToken = jwtService.generateAccessToken(username);
-            String newRefreshToken = jwtService.generateRefreshToken(username);
-
-            Users user = repo.findByUsername(username);
-            if (user == null) {
-                ApiResponse<Users> apiResponse = new ApiResponse<>("User not found", null, null, null,
-                        HttpStatus.NOT_FOUND.value());
-                return new ResponseEntity<>(apiResponse, HttpStatus.NOT_FOUND);
-            }
-
-            user.setRefreshToken(newRefreshToken);
-            repo.save(user);
-
-            ApiResponse<Users> apiResponse = new ApiResponse<>("Tokens refreshed successfully", user, newAccessToken,
-                    newRefreshToken,
-                    HttpStatus.OK.value());
-
-            return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+        Users user = repo.findByrefreshToken(refreshToken);
+        if (user == null) {
+            ApiResponse<Users> apiResponse = new ApiResponse<>(
+                    "Invalid refresh token. Please log in.",
+                    null,
+                    null,
+                    null,
+                    HttpStatus.BAD_REQUEST.value());
+            return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
         }
 
-        return null;
+        if (!jwtService.validateRefreshToken(refreshToken)) {
+            ApiResponse<Users> apiResponse = new ApiResponse<>(
+                    "Invalid refresh token. Please log in.",
+                    null,
+                    null,
+                    null,
+                    HttpStatus.BAD_REQUEST.value());
+            return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+        }
+
+        final String username = jwtService.extractusername(refreshToken);
+
+        if (jwtService.isTokenExpired(refreshToken)) {
+            ApiResponse<Users> apiResponse = new ApiResponse<>(
+                    "Refresh token expired. Please log in again.",
+                    null,
+                    null,
+                    null,
+                    HttpStatus.UNAUTHORIZED.value());
+            return new ResponseEntity<>(apiResponse, HttpStatus.UNAUTHORIZED);
+        }
+
+        String newAccessToken = jwtService.generateAccessToken(username);
+        String newRefreshToken = jwtService.generateRefreshToken(username);
+
+        user.setRefreshToken(newRefreshToken);
+        repo.save(user);
+
+        ApiResponse<Users> apiResponse = new ApiResponse<>(
+                "Tokens refreshed successfully",
+                user,
+                newAccessToken,
+                newRefreshToken,
+                HttpStatus.OK.value());
+
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
     }
 
     public ResponseEntity<ApiResponse<String>> logout(String refreshToken) {
